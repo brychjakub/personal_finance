@@ -654,7 +654,7 @@ def update_google_sheet(
                 sheets_service.spreadsheets().values().update(
                     spreadsheetId=spreadsheet_id,
                     range=f"{quoted_sheet_name}!A{existing_row}:E{existing_row}",
-                    valueInputOption="RAW",
+                    valueInputOption="USER_ENTERED",
                     body={"values": [values]},
                 ).execute()
             else:
@@ -664,7 +664,7 @@ def update_google_sheet(
             sheets_service.spreadsheets().values().append(
                 spreadsheetId=spreadsheet_id,
                 range=f"{quoted_sheet_name}!A:E",
-                valueInputOption="RAW",
+                valueInputOption="USER_ENTERED",
                 insertDataOption="INSERT_ROWS",
                 body={"values": append_values},
             ).execute()

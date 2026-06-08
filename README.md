@@ -126,7 +126,7 @@ Podporovaný je i formát jako pole:
 ]
 ```
 
-Script hledá Spendee wallet ID v odpovědi přes možné klíče `id`, `wallet_id` a `uuid`. Interní ID se zapisuje do sloupce B a používá se pro upsert existujícího řádku.
+Script hledá Spendee wallet ID v odpovědi přes možné klíče `id`, `wallet_id` a `uuid`. Interní ID se zapisuje do sloupce B a používá se pro upsert existujícího řádku. Datum ve sloupci A se zapisuje jako `YYYY-MM-DD` přes režim `USER_ENTERED`, aby ho Google Sheets bral jako datum, ne jako text s apostrofem.
 
 
 ## Jak získat Spendee wallet ID
