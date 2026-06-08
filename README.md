@@ -128,6 +128,65 @@ Podporovaný je i formát jako pole:
 
 Script hledá Spendee wallet ID v odpovědi přes možné klíče `id`, `wallet_id` a `uuid`. Interní ID se zapisuje do sloupce B a používá se pro upsert existujícího řádku.
 
+
+## Jak získat Spendee wallet ID
+
+Spendee wallet ID získáte jednorázově přes endpoint `wallet-get-all`. **Lepší varianta je použít refresh token flow** a z něj si lokálně vyžádat krátkodobý `ACCESS_TOKEN`; ručně zkopírovaný Bearer token z prohlížeče používejte jen jednorázově pro kontrolu / debug.
+
+1. Pokud máte refresh token flow, nastavte lokálně existující hodnoty:
+
+   ```bash
+   export SPENDEE_TOKEN_URL="https://..."
+   export SPENDEE_REFRESH_TOKEN="..."
+   export SPENDEE_DEVICE_UUID="..."
+   ```
+
+2. Z refresh tokenu si vyžádejte krátkodobý access token:
+
+   ```bash
+   ACCESS_TOKEN=$(curl -sS -X POST "$SPENDEE_TOKEN_URL" \
+     -H "accept: application/json, text/plain, */*" \
+     -H "device-uuid: $SPENDEE_DEVICE_UUID" \
+     -H "origin: https://app.spendee.com" \
+     -H "referer: https://app.spendee.com/" \
+     -H "spendee-platform: web" \
+     -H "spendee-version: master" \
+     --data-urlencode "grant_type=refresh_token" \
+     --data-urlencode "refresh_token=$SPENDEE_REFRESH_TOKEN" \
+     | python -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+   ```
+
+   Pokud token endpoint vyžaduje `client_id` / `client_secret`, přidejte je do form body stejně jako ve workflow/scriptu.
+
+3. Vypište ID a názvy peněženek. Tohle je nejrychlejší varianta s `jq`:
+
+   ```bash
+   curl -sS 'https://api.spendee.com/v1.4/wallet-get-all' \
+     -H "Authorization: Bearer $ACCESS_TOKEN" \
+     -H "device-uuid: $SPENDEE_DEVICE_UUID" \
+     -H "accept: application/json, text/plain, */*" \
+     -H "origin: https://app.spendee.com" \
+     -H "referer: https://app.spendee.com/" \
+     -H "spendee-platform: web" \
+     -H "spendee-version: master" \
+     | jq '.result[] | {id, name, balance, currency, status}'
+   ```
+
+   Pokud už máte jednorázový token z prohlížeče v proměnné `TOKEN`, můžete pro tento diagnostický krok použít `-H "Authorization: Bearer $TOKEN"`. Do GitHub Secrets pro automatizaci ho ale ukládat nemusíte, pokud funguje refresh token flow.
+
+4. Hodnotu `id` ze Spendee použijte jako klíč v `SPENDEE_WALLET_MAPPINGS`. Například pokud Spendee vypíše Air Bank s ID `123456789` a v dashboardu je interní ID `air_bank`, secret bude obsahovat:
+
+   ```json
+   {
+     "123456789": {
+       "internal_id": "air_bank",
+       "note": "Air Bank"
+     }
+   }
+   ```
+
+Pro přidání další banky stačí postup zopakovat, najít její `id` ve výpisu a přidat další položku do `SPENDEE_WALLET_MAPPINGS`. Reálná ID je praktičtější držet v GitHub Secretu; do README patří hlavně postup a případně neprodukční příklady.
+
 ## Spendee autentizace
 
 Preferovaná varianta je **refresh token flow**. Nastavte alespoň:

@@ -211,8 +211,10 @@ def load_config() -> Config:
 
 def _spendee_headers(device_uuid: str) -> dict[str, str]:
     return {
-        "accept": "application/json",
+        "accept": "application/json, text/plain, */*",
         "device-uuid": device_uuid,
+        "origin": "https://app.spendee.com",
+        "referer": "https://app.spendee.com/",
         "spendee-platform": "web",
         "spendee-version": "master",
     }
