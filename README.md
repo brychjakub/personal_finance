@@ -187,6 +187,17 @@ Spendee wallet ID získáte jednorázově přes endpoint `wallet-get-all`. **Lep
 
 Pro přidání další banky stačí postup zopakovat, najít její `id` ve výpisu a přidat další položku do `SPENDEE_WALLET_MAPPINGS`. Reálná ID je praktičtější držet v GitHub Secretu; do README patří hlavně postup a případně neprodukční příklady.
 
+### Když GitHub Action hlásí, že `result` není pole
+
+Pokud lokální `curl` s tokenem z prohlížeče funguje, ale GitHub Action vrací chybu typu `Spendee wallet response does not contain a wallet array`, většinou je problém v tokenu z refresh flow nebo v `SPENDEE_DEVICE_UUID`.
+
+Co zkontrolovat:
+
+1. `SPENDEE_DEVICE_UUID` v GitHub Secrets musí být stejný jako v lokálním funkčním `curl` příkazu.
+2. `SPENDEE_TOKEN_URL` musí být skutečný token endpoint, který vrací `access_token` pro Spendee API.
+3. Pokud token endpoint potřebuje klientské údaje, doplňte `SPENDEE_CLIENT_ID`, `SPENDEE_CLIENT_SECRET` a případně `SPENDEE_TOKEN_AUTH_MODE`.
+4. Jako dočasný fallback můžete do GitHub Secret `SPENDEE_TOKEN` vložit krátkodobý Bearer token bez prefixu `Bearer`; script ho zkusí použít, když refresh token flow vrátí token, se kterým nejde načíst wallet list.
+
 ## Spendee autentizace
 
 Preferovaná varianta je **refresh token flow**. Nastavte alespoň:
@@ -199,9 +210,24 @@ Pokud token endpoint vyžaduje klientské údaje, nastavte také `SPENDEE_CLIENT
 
 Výchozí `SPENDEE_TOKEN_AUTH_MODE=body` posílá `client_id` a `client_secret` do form body. Při `SPENDEE_TOKEN_AUTH_MODE=basic` se použije HTTP Basic auth.
 
-`SPENDEE_TOKEN` je jen fallback pro situaci, kdy refresh token flow není nastavené. Hodnota musí být samotný access token bez prefixu `Bearer`.
+`SPENDEE_TOKEN` je fallback pro situaci, kdy refresh token flow není nastavené, a také dočasná záchrana, když refresh token vrátí access token, se kterým Spendee nevrátí seznam peněženek. Hodnota musí být samotný access token bez prefixu `Bearer`.
 
 ## Google service account JSON
+
+Rychle: najdete / vytvoříte ho v **Google Cloud Console → IAM & Admin → Service Accounts → vybraný service account → Keys → Add key → Create new key → JSON**. Stáhne se `.json` soubor; celý jeho obsah vložte do GitHub Secret `GOOGLE_SERVICE_ACCOUNT_JSON`.
+
+Vypadá zhruba takto — hodnoty níže jsou jen ukázka:
+
+```json
+{
+  "type": "service_account",
+  "project_id": "my-project",
+  "private_key_id": "...",
+  "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
+  "client_email": "nazev-service-accountu@my-project.iam.gserviceaccount.com",
+  "client_id": "..."
+}
+```
 
 1. V Google Cloud Console vytvořte nebo vyberte projekt.
 2. Povolte **Google Sheets API**.

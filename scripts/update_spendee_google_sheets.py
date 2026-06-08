@@ -24,6 +24,7 @@ SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 DEFAULT_RECORDS_SHEET_NAME = "Zaznamy"
 RECORDS_HEADER = ["Datum", "ID", "Hodnota_CZK", "Zdroj", "Poznamka"]
 SPENDEE_SOURCE_NAME = "Spendee API"
+SAFE_SPENDEE_RESPONSE_KEYS = ("error", "error_description", "message", "code", "status")
 
 
 class ConfigError(Exception):
@@ -217,7 +218,50 @@ def _spendee_headers(device_uuid: str) -> dict[str, str]:
         "referer": "https://app.spendee.com/",
         "spendee-platform": "web",
         "spendee-version": "master",
+        "user-agent": "Mozilla/5.0",
     }
+
+
+def _safe_spendee_response_summary(payload: Any) -> str:
+    if not isinstance(payload, dict):
+        return f"top-level type={type(payload).__name__}"
+
+    summary_parts = [f"keys={','.join(sorted(str(key) for key in payload.keys())) or 'none'}"]
+    for key in SAFE_SPENDEE_RESPONSE_KEYS:
+        value = payload.get(key)
+        if isinstance(value, str | int | float | bool) or value is None:
+            summary_parts.append(f"{key}={value!r}")
+    result = payload.get("result")
+    summary_parts.append(f"result_type={type(result).__name__}")
+    return "; ".join(summary_parts)
+
+
+def _wallet_list_from_payload(payload: Any) -> list[dict[str, Any]]:
+    candidates: list[Any] = []
+    if isinstance(payload, list):
+        candidates.append(payload)
+    elif isinstance(payload, dict):
+        result = payload.get("result")
+        candidates.append(result)
+        if isinstance(result, dict):
+            candidates.extend(
+                result.get(key)
+                for key in ("wallets", "data", "items", "records")
+            )
+        candidates.extend(payload.get(key) for key in ("wallets", "data", "items", "records"))
+
+    for candidate in candidates:
+        if isinstance(candidate, list):
+            if not all(isinstance(item, dict) for item in candidate):
+                raise SpendeeError('Spendee wallet list must contain wallet objects only.')
+            return candidate
+
+    raise SpendeeError(
+        "Spendee wallet response does not contain a wallet array. "
+        f"Safe response summary: {_safe_spendee_response_summary(payload)}. "
+        "If local curl works with a browser Bearer token, verify that the GitHub Secrets refresh token "
+        "flow returns the same kind of access token, or set SPENDEE_TOKEN as a temporary fallback."
+    )
 
 
 def refresh_spendee_access_token(config: Config) -> str:
@@ -284,12 +328,7 @@ def fetch_spendee_wallets(access_token: str, device_uuid: str) -> list[dict[str,
     except ValueError as exc:
         raise SpendeeError("Spendee wallet response is not valid JSON.") from exc
 
-    result = payload.get("result") if isinstance(payload, dict) else None
-    if not isinstance(result, list):
-        raise SpendeeError('Spendee wallet response must contain "result" as an array.')
-    if not all(isinstance(item, dict) for item in result):
-        raise SpendeeError('Spendee wallet response "result" must contain wallet objects only.')
-    return result
+    return _wallet_list_from_payload(payload)
 
 
 def find_wallet(wallets: list[dict[str, Any]], wallet_id: str) -> dict[str, Any]:
@@ -526,7 +565,13 @@ def update_google_sheet(
 def run() -> None:
     config = load_config()
     access_token = refresh_spendee_access_token(config)
-    wallets = fetch_spendee_wallets(access_token, config.spendee_device_uuid)
+    try:
+        wallets = fetch_spendee_wallets(access_token, config.spendee_device_uuid)
+    except SpendeeError:
+        if config.spendee_token and access_token != config.spendee_token:
+            wallets = fetch_spendee_wallets(config.spendee_token, config.spendee_device_uuid)
+        else:
+            raise
     updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     records = build_sheet_records(wallets, config.wallet_mappings, updated_at)
     service_account_info = parse_service_account_json(config.google_service_account_json)
