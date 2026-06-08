@@ -193,6 +193,8 @@ Pokud lokální `curl` s tokenem z prohlížeče funguje, ale GitHub Action vrac
 
 Script v takové situaci vypíše jen bezpečné shrnutí odpovědi bez tokenů a bez detailů peněženek. Pokud je `error` objekt, nově se vypíšou i jeho bezpečné položky jako `error.code`, `error.message`, `error.status` nebo `error.service`, aby bylo jasnější, proč Spendee request odmítlo.
 
+V GitHub Actions logu sledujte řádky začínající `Progress:`. Ty ukazují přesnou fázi běhu: konfigurace, refresh tokenu, načtení Spendee wallets, příprava záznamů, service account a zápis do Google Sheets. Název workflow stepu je obecný, takže chyba uvnitř stepu nemusí nutně znamenat, že už script zapisoval do Google Sheets.
+
 Co zkontrolovat:
 
 1. `SPENDEE_DEVICE_UUID` v GitHub Secrets musí být stejný jako v lokálním funkčním `curl` příkazu.

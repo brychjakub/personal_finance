@@ -41,6 +41,11 @@ class GoogleSheetsError(Exception):
     """Raised when communication with Google Sheets fails."""
 
 
+def log_progress(message: str) -> None:
+    """Print a non-sensitive progress marker for GitHub Actions logs."""
+    print(f"Progress: {message}", file=sys.stderr, flush=True)
+
+
 @dataclass(frozen=True)
 class WalletMapping:
     spendee_wallet_id: str
@@ -583,19 +588,50 @@ def update_google_sheet(
 
 
 def run() -> None:
+    log_progress("1/7 loading configuration")
     config = load_config()
+    log_progress(f"configuration loaded; wallet mappings configured: {len(config.wallet_mappings)}")
+
+    if config.spendee_token_url and config.spendee_refresh_token:
+        log_progress("2/7 refreshing Spendee access token")
+    else:
+        log_progress("2/7 using SPENDEE_TOKEN fallback as primary token")
     access_token = refresh_spendee_access_token(config)
+
     try:
+        log_progress("3/7 fetching Spendee wallets with refreshed/primary token")
         wallets = fetch_spendee_wallets(access_token, config.spendee_device_uuid)
-    except SpendeeError:
+    except SpendeeError as exc:
         if config.spendee_token and access_token != config.spendee_token:
-            wallets = fetch_spendee_wallets(config.spendee_token, config.spendee_device_uuid)
+            log_progress("primary Spendee wallet fetch failed; trying SPENDEE_TOKEN fallback")
+            try:
+                wallets = fetch_spendee_wallets(config.spendee_token, config.spendee_device_uuid)
+            except SpendeeError as fallback_exc:
+                raise SpendeeError(
+                    "Spendee wallet fetch failed with both refreshed token and SPENDEE_TOKEN fallback. "
+                    f"Primary error: {exc}. Fallback error: {fallback_exc}"
+                ) from fallback_exc
         else:
+            if config.spendee_token:
+                log_progress("SPENDEE_TOKEN fallback was configured but is the same token already tried")
+            else:
+                log_progress("SPENDEE_TOKEN fallback is not configured")
             raise
+
+    log_progress(f"Spendee wallets fetched; wallet objects received: {len(wallets)}")
     updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+    log_progress("4/7 building Google Sheets records from wallet mappings")
     records = build_sheet_records(wallets, config.wallet_mappings, updated_at)
+    log_progress(f"records prepared for Google Sheets: {len(records)}")
+
+    log_progress("5/7 parsing Google service account credentials")
     service_account_info = parse_service_account_json(config.google_service_account_json)
+
+    log_progress("6/7 building Google Sheets service")
     sheets_service = build_sheets_service(service_account_info)
+
+    log_progress("7/7 upserting records into Google Sheet")
     update_google_sheet(
         sheets_service,
         config.google_sheet_id,
