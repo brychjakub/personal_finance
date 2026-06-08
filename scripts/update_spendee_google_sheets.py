@@ -510,6 +510,18 @@ def _google_http_error_summary(exc: HttpError) -> str:
     return "; ".join(summary_parts)
 
 
+def _google_office_file_hint(summary: str) -> str:
+    lowered = summary.lower()
+    if "office file" not in lowered:
+        return ""
+    return (
+        " The configured GOOGLE_SHEET_ID points to an Office/Excel .xlsx/.xlsm file, not a native "
+        "Google Sheets spreadsheet. Open the file in Google Drive and convert it with "
+        "File > Save as Google Sheets, then update GOOGLE_SHEET_ID to the new Google Sheets "
+        "document ID and share that new document with the service account as Editor."
+    )
+
+
 def ensure_sheet_exists(sheets_service: Any, spreadsheet_id: str, sheet_name: str) -> None:
     """Create a sheet tab when it is missing."""
     try:
@@ -519,9 +531,12 @@ def ensure_sheet_exists(sheets_service: Any, spreadsheet_id: str, sheet_name: st
             .execute()
         )
     except HttpError as exc:
+        summary = _google_http_error_summary(exc)
+        office_file_hint = _google_office_file_hint(summary)
         raise GoogleSheetsError(
             "Failed to read Google spreadsheet metadata while ensuring the sheet tab exists. "
-            f"{_google_http_error_summary(exc)}. "
+            f"{summary}."
+            f"{office_file_hint} "
             "Check GOOGLE_SHEET_ID, enable Google Sheets API, and share the target spreadsheet "
             "with the service account client_email as Editor."
         ) from exc
@@ -692,7 +707,7 @@ def run() -> None:
             raise
 
     log_progress(f"Spendee wallets fetched; wallet objects received: {len(wallets)}")
-    updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    updated_at = datetime.now(timezone.utc).date().isoformat()
 
     log_progress("4/7 building Google Sheets records from wallet mappings")
     records = build_sheet_records(wallets, config.wallet_mappings, updated_at)

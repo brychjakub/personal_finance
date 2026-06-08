@@ -195,7 +195,7 @@ Script v takové situaci vypíše jen bezpečné shrnutí odpovědi bez tokenů 
 
 V GitHub Actions logu sledujte řádky začínající `Progress:`. Ty ukazují přesnou fázi běhu: konfigurace, refresh tokenu, načtení Spendee wallets, příprava záznamů, service account a zápis do Google Sheets. Název workflow stepu je obecný, takže chyba uvnitř stepu nemusí nutně znamenat, že už script zapisoval do Google Sheets.
 
-Pokud běh dojde na `Progress: 7/7 upserting records into Google Sheet` a selže při zajištění listu/tabu, script vypíše bezpečné Google API detaily jako HTTP status, `error.status` a `error.message`. Nejčastější příčiny jsou špatné `GOOGLE_SHEET_ID`, vypnuté Google Sheets API nebo cílová tabulka není nasdílená na `client_email` service accountu jako Editor.
+Pokud běh dojde na `Progress: 7/7 upserting records into Google Sheet` a selže při zajištění listu/tabu, script vypíše bezpečné Google API detaily jako HTTP status, `error.status` a `error.message`. Hláška `The document must not be an Office file` znamená, že `GOOGLE_SHEET_ID` ukazuje na nativní Excel/Office `.xlsx` / `.xlsm` soubor v Google Drive, ne na převedenou Google Sheets tabulku. Takový soubor Google Sheets API neumí upravovat. Otevřete ho v Google Drive a použijte **File / Soubor → Save as Google Sheets / Uložit jako Tabulky Google**, potom vezměte ID nově vzniklé Google Sheets tabulky a to dejte do `GOOGLE_SHEET_ID`.
 
 Co zkontrolovat:
 
@@ -298,9 +298,11 @@ Spouští se:
 
 V GitHub repozitáři nastavte secrets v **Settings → Secrets and variables → Actions**. Poté spusťte workflow ručně nebo počkejte na plánovaný běh.
 
-## Poznámka k lokálnímu `.xlsx`
+## Poznámka k `.xlsx` / `.xlsm` dashboardu
 
-V pracovním stromu repozitáře jsem při úpravě nenašel žádný `.xlsx` / `.xls` / `.xlsm` soubor. Script proto cílí na Google Sheet a list `Zaznamy` podle popisu výše. Pokud má existující Excel dashboard obsahovat další konkrétní interní ID nebo jiné listy/sloupce, je potřeba dodat buď daný soubor do repozitáře, nebo vypsat přesná interní ID a očekávané řádky.
+Google Sheets API neumí zapisovat přímo do Office/Excel `.xlsx` nebo `.xlsm` souboru uloženého na Google Drive. Dashboard musí být převedený na nativní Google Sheets dokument a `GOOGLE_SHEET_ID` musí patřit právě této převedené tabulce. Původní `.xlsx` / `.xlsm` může zůstat jako zdroj / záloha, ale automatizace zapisuje do Google Sheets listu `Zaznamy`.
+
+Pokud URL obsahuje parametry jako `rtpof=true` a `sd=true`, například `.../spreadsheets/d/<ID>/edit?...&rtpof=true&sd=true`, Google Drive dokument pořád otevírá jako Office soubor v kompatibilním režimu. V takovém případě nestačí vzít ID mezi `/d/` a `/edit`; nejdřív je potřeba vytvořit kopii přes **File / Soubor → Save as Google Sheets / Uložit jako Tabulky Google** a až ID této nové kopie uložit do `GOOGLE_SHEET_ID`. Nasdílet service accountu je potřeba také novou převedenou Google Sheets tabulku, ne jen původní `.xlsm`.
 
 ## Bezpečnostní upozornění
 
