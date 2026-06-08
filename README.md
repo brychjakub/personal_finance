@@ -86,29 +86,25 @@ Doporučený formát jako objekt:
 
 ```json
 {
-  "spendee-wallet-id-kb": {
+  "9568815": {
     "internal_id": "CASH_KB_OSOBNI",
     "note": "KB osobní"
   },
-  "spendee-wallet-id-kb-sporici": {
+  "9568814": {
     "internal_id": "CASH_KB_SPORAK",
     "note": "KB spořící"
   },
-  "spendee-wallet-id-partners-osobni": {
+  "9568846": {
     "internal_id": "CASH_PARTNERS_OSOBNI",
     "note": "Partners osobní"
   },
-  "spendee-wallet-id-partners-spolecny": {
+  "9568845": {
     "internal_id": "CASH_PARTNERS_SPOLECNY",
     "note": "Partners společný"
   },
-  "spendee-wallet-id-revolut": {
+  "9568832": {
     "internal_id": "OSOBNI_REVOLUT",
     "note": "Revolut"
-  },
-  "spendee-wallet-id-airbank": {
-    "internal_id": "OSOBNI_AIRBANK",
-    "note": "Air Bank"
   }
 }
 ```
