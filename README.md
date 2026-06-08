@@ -189,14 +189,17 @@ Pro přidání další banky stačí postup zopakovat, najít její `id` ve výp
 
 ### Když GitHub Action hlásí, že `result` není pole
 
-Pokud lokální `curl` s tokenem z prohlížeče funguje, ale GitHub Action vrací chybu typu `Spendee wallet response does not contain a wallet array`, většinou je problém v tokenu z refresh flow nebo v `SPENDEE_DEVICE_UUID`.
+Pokud lokální `curl` s tokenem z prohlížeče funguje, ale GitHub Action vrací chybu typu `Spendee wallet response does not contain a wallet array`, není to problém mapování peněženek. Znamená to, že Spendee API vrátilo chybovou odpověď, typicky `status='ERROR'` a `result=null`, takže script žádný seznam peněženek nedostal.
+
+Script v takové situaci vypíše jen bezpečné shrnutí odpovědi bez tokenů a bez detailů peněženek. Pokud je `error` objekt, nově se vypíšou i jeho bezpečné položky jako `error.code`, `error.message`, `error.status` nebo `error.service`, aby bylo jasnější, proč Spendee request odmítlo.
 
 Co zkontrolovat:
 
 1. `SPENDEE_DEVICE_UUID` v GitHub Secrets musí být stejný jako v lokálním funkčním `curl` příkazu.
-2. `SPENDEE_TOKEN_URL` musí být skutečný token endpoint, který vrací `access_token` pro Spendee API.
+2. `SPENDEE_TOKEN_URL` musí být skutečný token endpoint, který vrací `access_token` použitelný pro `https://api.spendee.com/v1.4/wallet-get-all`.
 3. Pokud token endpoint potřebuje klientské údaje, doplňte `SPENDEE_CLIENT_ID`, `SPENDEE_CLIENT_SECRET` a případně `SPENDEE_TOKEN_AUTH_MODE`.
-4. Jako dočasný fallback můžete do GitHub Secret `SPENDEE_TOKEN` vložit krátkodobý Bearer token bez prefixu `Bearer`; script ho zkusí použít, když refresh token flow vrátí token, se kterým nejde načíst wallet list.
+4. Pro rychlé ověření vložte do GitHub Secret `SPENDEE_TOKEN` stejný krátkodobý token, se kterým vám fungoval lokální `curl` — bez prefixu `Bearer`. Script ho zkusí jako fallback, pokud refresh token flow vrátí token, se kterým nejde načíst wallet list.
+5. Pokud fallback `SPENDEE_TOKEN` projde, problém je potvrzeně v refresh flow / token endpointu, ne v Google Sheets ani v `SPENDEE_WALLET_MAPPINGS`.
 
 ## Spendee autentizace
 

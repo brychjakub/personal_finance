@@ -24,7 +24,9 @@ SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 DEFAULT_RECORDS_SHEET_NAME = "Zaznamy"
 RECORDS_HEADER = ["Datum", "ID", "Hodnota_CZK", "Zdroj", "Poznamka"]
 SPENDEE_SOURCE_NAME = "Spendee API"
-SAFE_SPENDEE_RESPONSE_KEYS = ("error", "error_description", "message", "code", "status")
+SAFE_SPENDEE_RESPONSE_KEYS = ("error", "error_description", "message", "code", "status", "service")
+SAFE_SPENDEE_NESTED_KEYS = ("error", "error_description", "message", "code", "status", "type", "name", "service")
+SAFE_SPENDEE_MAX_VALUE_LENGTH = 180
 
 
 class ConfigError(Exception):
@@ -222,6 +224,15 @@ def _spendee_headers(device_uuid: str) -> dict[str, str]:
     }
 
 
+def _safe_scalar_repr(value: Any) -> str | None:
+    if not (isinstance(value, str | int | float | bool) or value is None):
+        return None
+    rendered = repr(value)
+    if len(rendered) > SAFE_SPENDEE_MAX_VALUE_LENGTH:
+        rendered = rendered[: SAFE_SPENDEE_MAX_VALUE_LENGTH - 3] + "..."
+    return rendered
+
+
 def _safe_spendee_response_summary(payload: Any) -> str:
     if not isinstance(payload, dict):
         return f"top-level type={type(payload).__name__}"
@@ -229,8 +240,17 @@ def _safe_spendee_response_summary(payload: Any) -> str:
     summary_parts = [f"keys={','.join(sorted(str(key) for key in payload.keys())) or 'none'}"]
     for key in SAFE_SPENDEE_RESPONSE_KEYS:
         value = payload.get(key)
-        if isinstance(value, str | int | float | bool) or value is None:
-            summary_parts.append(f"{key}={value!r}")
+        scalar = _safe_scalar_repr(value)
+        if scalar is not None:
+            summary_parts.append(f"{key}={scalar}")
+        elif isinstance(value, dict):
+            nested_keys = ",".join(sorted(str(nested_key) for nested_key in value.keys())) or "none"
+            summary_parts.append(f"{key}_keys={nested_keys}")
+            for nested_key in SAFE_SPENDEE_NESTED_KEYS:
+                nested_scalar = _safe_scalar_repr(value.get(nested_key))
+                if nested_scalar is not None:
+                    summary_parts.append(f"{key}.{nested_key}={nested_scalar}")
+
     result = payload.get("result")
     summary_parts.append(f"result_type={type(result).__name__}")
     return "; ".join(summary_parts)
