@@ -243,6 +243,8 @@ Vypadá zhruba takto — hodnoty níže jsou jen ukázka:
    - base64 encoded JSON,
    - pro lokální běh můžete použít cestu k lokálnímu JSON souboru.
 
+Script nejdřív zkusí hodnotu načíst jako raw JSON, potom jako base64 JSON a až nakonec jako lokální cestu k souboru. Dlouhý raw JSON tedy nebude omylem vyhodnocený jako název souboru.
+
 Service account JSON nikdy necommitujte do repozitáře a nevypisujte ho do logů.
 
 ## Nasdílení Google Sheetu service accountu

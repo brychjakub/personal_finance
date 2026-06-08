@@ -417,14 +417,8 @@ def build_sheet_records(
 def parse_service_account_json(value: str) -> dict[str, Any]:
     """Parse service account JSON from raw JSON, base64 JSON, or a local file path."""
     stripped = value.strip()
-    path = Path(stripped).expanduser()
-    if path.is_file():
-        try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except OSError as exc:
-            raise ConfigError("Could not read GOOGLE_SERVICE_ACCOUNT_JSON file path.") from exc
-        except json.JSONDecodeError as exc:
-            raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON file does not contain valid JSON.") from exc
+    if not stripped:
+        raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON is empty.")
 
     if stripped.startswith("{"):
         try:
@@ -435,10 +429,26 @@ def parse_service_account_json(value: str) -> dict[str, Any]:
     try:
         decoded = base64.b64decode(stripped, validate=True).decode("utf-8")
         return json.loads(decoded)
-    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError):
+        pass
+
+    try:
+        path = Path(stripped).expanduser()
+        if path.is_file():
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except OSError as exc:
+                raise ConfigError("Could not read GOOGLE_SERVICE_ACCOUNT_JSON file path.") from exc
+            except json.JSONDecodeError as exc:
+                raise ConfigError("GOOGLE_SERVICE_ACCOUNT_JSON file does not contain valid JSON.") from exc
+    except OSError as exc:
         raise ConfigError(
-            "GOOGLE_SERVICE_ACCOUNT_JSON must be raw JSON, base64 encoded JSON, or a local JSON file path."
+            "GOOGLE_SERVICE_ACCOUNT_JSON is not valid raw JSON/base64 JSON and is too long or invalid as a file path."
         ) from exc
+
+    raise ConfigError(
+        "GOOGLE_SERVICE_ACCOUNT_JSON must be raw JSON, base64 encoded JSON, or a local JSON file path."
+    )
 
 
 def build_sheets_service(service_account_info: dict[str, Any]):
