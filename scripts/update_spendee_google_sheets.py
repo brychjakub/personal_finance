@@ -27,6 +27,7 @@ SPENDEE_SOURCE_NAME = "Spendee API"
 SAFE_SPENDEE_RESPONSE_KEYS = ("error", "error_description", "message", "code", "status", "service")
 SAFE_SPENDEE_NESTED_KEYS = ("error", "error_description", "message", "code", "status", "type", "name", "service")
 SAFE_SPENDEE_MAX_VALUE_LENGTH = 180
+SAFE_GOOGLE_ERROR_KEYS = ("message", "status", "code")
 
 
 class ConfigError(Exception):
@@ -469,6 +470,46 @@ def _quote_sheet_name(sheet_name: str) -> str:
     return "'" + sheet_name.replace("'", "''") + "'"
 
 
+def _google_http_error_summary(exc: HttpError) -> str:
+    """Return a bounded, non-secret summary of a Google API HttpError."""
+    summary_parts: list[str] = []
+    status = getattr(getattr(exc, "resp", None), "status", None)
+    reason = getattr(exc, "reason", None)
+    if status is not None:
+        summary_parts.append(f"HTTP status {status}")
+    if reason:
+        summary_parts.append(f"reason={_safe_scalar_repr(reason)}")
+
+    content = getattr(exc, "content", b"")
+    if isinstance(content, bytes):
+        try:
+            content_text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            content_text = ""
+    else:
+        content_text = str(content)
+
+    if content_text:
+        try:
+            payload = json.loads(content_text)
+        except json.JSONDecodeError:
+            payload = None
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                for key in SAFE_GOOGLE_ERROR_KEYS:
+                    scalar = _safe_scalar_repr(error.get(key))
+                    if scalar is not None:
+                        summary_parts.append(f"error.{key}={scalar}")
+                details = error.get("details")
+                if isinstance(details, list):
+                    summary_parts.append(f"error.details_count={len(details)}")
+
+    if not summary_parts:
+        return "No Google API error details were available."
+    return "; ".join(summary_parts)
+
+
 def ensure_sheet_exists(sheets_service: Any, spreadsheet_id: str, sheet_name: str) -> None:
     """Create a sheet tab when it is missing."""
     try:
@@ -477,19 +518,32 @@ def ensure_sheet_exists(sheets_service: Any, spreadsheet_id: str, sheet_name: st
             .get(spreadsheetId=spreadsheet_id, fields="sheets.properties.title")
             .execute()
         )
-        existing_titles = {
-            sheet.get("properties", {}).get("title")
-            for sheet in spreadsheet.get("sheets", [])
-        }
-        if sheet_name in existing_titles:
-            return
+    except HttpError as exc:
+        raise GoogleSheetsError(
+            "Failed to read Google spreadsheet metadata while ensuring the sheet tab exists. "
+            f"{_google_http_error_summary(exc)}. "
+            "Check GOOGLE_SHEET_ID, enable Google Sheets API, and share the target spreadsheet "
+            "with the service account client_email as Editor."
+        ) from exc
 
+    existing_titles = {
+        sheet.get("properties", {}).get("title")
+        for sheet in spreadsheet.get("sheets", [])
+    }
+    if sheet_name in existing_titles:
+        return
+
+    try:
         sheets_service.spreadsheets().batchUpdate(
             spreadsheetId=spreadsheet_id,
             body={"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]},
         ).execute()
     except HttpError as exc:
-        raise GoogleSheetsError("Failed to ensure Google Sheets tab exists.") from exc
+        raise GoogleSheetsError(
+            f"Failed to create Google Sheets tab {sheet_name!r}. "
+            f"{_google_http_error_summary(exc)}. "
+            "Check that the service account has Editor access to the spreadsheet."
+        ) from exc
 
 
 def ensure_records_header(sheets_service: Any, spreadsheet_id: str, sheet_name: str) -> None:
@@ -511,7 +565,10 @@ def ensure_records_header(sheets_service: Any, spreadsheet_id: str, sheet_name: 
             body={"values": [RECORDS_HEADER]},
         ).execute()
     except HttpError as exc:
-        raise GoogleSheetsError("Failed to ensure Google Sheets records header exists.") from exc
+        raise GoogleSheetsError(
+            "Failed to ensure Google Sheets records header exists. "
+            f"{_google_http_error_summary(exc)}."
+        ) from exc
 
 
 def fetch_existing_record_rows(
@@ -529,7 +586,10 @@ def fetch_existing_record_rows(
             .execute()
         )
     except HttpError as exc:
-        raise GoogleSheetsError("Failed to read existing Google Sheet records.") from exc
+        raise GoogleSheetsError(
+            "Failed to read existing Google Sheet records. "
+            f"{_google_http_error_summary(exc)}."
+        ) from exc
 
     rows = response.get("values", [])
     if not isinstance(rows, list):
@@ -594,7 +654,10 @@ def update_google_sheet(
                 body={"values": append_values},
             ).execute()
     except HttpError as exc:
-        raise GoogleSheetsError("Failed to update Google Sheet records.") from exc
+        raise GoogleSheetsError(
+            "Failed to update Google Sheet records. "
+            f"{_google_http_error_summary(exc)}."
+        ) from exc
 
 
 def run() -> None:

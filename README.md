@@ -195,6 +195,8 @@ Script v takové situaci vypíše jen bezpečné shrnutí odpovědi bez tokenů 
 
 V GitHub Actions logu sledujte řádky začínající `Progress:`. Ty ukazují přesnou fázi běhu: konfigurace, refresh tokenu, načtení Spendee wallets, příprava záznamů, service account a zápis do Google Sheets. Název workflow stepu je obecný, takže chyba uvnitř stepu nemusí nutně znamenat, že už script zapisoval do Google Sheets.
 
+Pokud běh dojde na `Progress: 7/7 upserting records into Google Sheet` a selže při zajištění listu/tabu, script vypíše bezpečné Google API detaily jako HTTP status, `error.status` a `error.message`. Nejčastější příčiny jsou špatné `GOOGLE_SHEET_ID`, vypnuté Google Sheets API nebo cílová tabulka není nasdílená na `client_email` service accountu jako Editor.
+
 Co zkontrolovat:
 
 1. `SPENDEE_DEVICE_UUID` v GitHub Secrets musí být stejný jako v lokálním funkčním `curl` příkazu.
